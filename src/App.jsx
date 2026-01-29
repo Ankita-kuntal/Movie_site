@@ -9,8 +9,7 @@ import TasteProfiler from './components/TasteProfiler.jsx'
 import { askAI, parseSearchIntent } from './ai/client.js';
 
 const API_BASE_URL = 'https://api.themoviedb.org/3';
-// const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
-const API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJmNjI3MmNiZTJiMzM1NDE1OWJhYzI1YzljOGYxYTk5YyIsIm5iZiI6MTc1NTc4NDgwMC42MTIsInN1YiI6IjY4YTcyNjYwZjdmMThhNDUzZWJjYjljMSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.FjCyZHpr7bly1F-6tYq079GoNDXXiwCmWUS_dHogShQ";
+const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 
 const API_OPTIONS = {
   method: 'GET',
@@ -119,7 +118,7 @@ const App = () => {
   // Function to open the modal
   const openModal = async (movie) => {
     try {
-      const movieDetailsResponse = await fetch(`${API_BASE_URL}/movie/${movie.id}`, API_OPTIONS);
+      const movieDetailsResponse = await fetch(`${API_BASE_URL}/movie/${movie.id}?api_key=${API_KEY}`);
       const movieDetails = await movieDetailsResponse.json();
       setSelectedMovie(movieDetails);
       setIsModalOpen(true);

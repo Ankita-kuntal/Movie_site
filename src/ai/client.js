@@ -1,8 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // 1. Capture the key safely
-// const apiKey = "AIzaSyDVL7BAlFkG0WvG1xvbaXf_3cdeLLvc4fU";
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const apiKey = "AIzaSyDVL7BAlFkG0WvG1xvbaXf_3cdeLLvc4fU";
 
 // 2. DEBUG: Print it to the console (Safety Check)
 // If it prints with quotes like "AIza...", that is the problem!
@@ -11,8 +10,8 @@ console.log("🔍 DEPLOYED KEY CHECK:", apiKey ? `Key exists. Starts with: ${api
 // 3. Setup the client
 const genAI = new GoogleGenerativeAI(apiKey);
 
-// 4. Define the model
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+// 4. Define the model - using gemini-pro for better compatibility
+const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
 export const askAI = async (prompt) => {
   try {
