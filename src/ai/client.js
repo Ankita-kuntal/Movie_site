@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // 1. Capture the key safely
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const apiKey = "AIzaSyDVL7BAlFkG0WvG1xvbaXf_3cdeLLvc4fU";
 
 // 2. DEBUG: Print it to the console (Safety Check)
 // If it prints with quotes like "AIza...", that is the problem!
