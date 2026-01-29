@@ -4,6 +4,9 @@ import Spinner from './components/Spinner.jsx'
 import MovieCard from './components/MovieCard.jsx'
 import { useDebounce } from 'react-use'
 import Modal from './components/Modal.jsx'
+// import { askAI } from './ai/client'
+import TasteProfiler from './components/TasteProfiler.jsx'
+import { askAI, parseSearchIntent } from './ai/client.js';
 
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
@@ -25,6 +28,7 @@ const App = () => {
   const [trendingMovies, setTrendingMovies] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState(null);
+  const [isTasteModalOpen, setIsTasteModalOpen] = useState(false);
 
   useDebounce(() => setDebouncedSearchTerm(searchTerm), 500, [searchTerm])
 
@@ -33,9 +37,32 @@ const App = () => {
     setErrorMessage('');
 
     try {
-      const endpoint = query
-        ? `${API_BASE_URL}/search/movie?query=${encodeURIComponent(query)}`
-        : `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
+      let endpoint = `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
+
+      if (query) {
+        // 🚨 STEP 1: Ask AI "What did the user mean?"
+        const intent = await parseSearchIntent(query);
+        console.log("🧠 AI Search Intent:", intent);
+
+        if (intent.type === 'search') {
+          // Case A: User wants a specific title (Old behavior)
+          endpoint = `${API_BASE_URL}/search/movie?query=${encodeURIComponent(intent.query)}`;
+        } else {
+          // Case B: User wants a vibe (New AI Smart Filter)
+          // We construct the URL with the filters the AI gave us
+          const params = new URLSearchParams({
+            include_adult: 'false',
+            include_video: 'false',
+            language: 'en-US',
+            sort_by: 'popularity.desc',
+            ...intent // Spreads things like primary_release_year, with_genres
+          });
+          // Remove the "type" key before sending to TMDB
+          params.delete('type'); 
+          
+          endpoint = `${API_BASE_URL}/discover/movie?${params.toString()}`;
+        }
+      }
 
       const response = await fetch(endpoint, API_OPTIONS);
 
@@ -45,7 +72,6 @@ const App = () => {
 
       const data = await response.json();
 
-
       if(!data.results || !Array.isArray(data.results)) {
         setErrorMessage('Failed to fetch movies');
         setMovieList([]);
@@ -53,6 +79,13 @@ const App = () => {
       }
 
       setMovieList(data.results || []);
+      
+      // OPTIONAL: If it was a smart search, update the DB count with the original query
+      if(query && movieList.length > 0) {
+        // You can keep your Appwrite tracking here if you want
+        // updateSearchCount(query, data.results[0]); 
+      }
+
     } catch (error) {
       console.error(`Error fetching movies: ${error}`);
       setErrorMessage('Error fetching movies. Please try again later.');
@@ -108,6 +141,52 @@ const App = () => {
     loadTrendingMovies();
   }, []);
 
+//   useEffect(() => {
+//   // 1. Debug: Check which key is loaded
+//   const key = import.meta.env.VITE_GEMINI_API_KEY;
+//   console.log("🔑 DEBUG KEY:", key ? key.slice(0, 10) + "..." : "UNDEFINED");
+
+//   // 2. Try the request
+//   askAI("Hello").then((res) => console.log("🤖 AI Response:", res));
+// }, []);
+
+// Add this function inside App component
+  const fetchAIMovies = async (aiRecommendations) => {
+    setIsLoading(true);
+    setErrorMessage('');
+    
+    try {
+      // 1. We create a list of promises (one search per movie)
+      const moviePromises = aiRecommendations.map(async (rec) => {
+        // Search TMDB for this specific title
+        const response = await fetch(
+          `${API_BASE_URL}/search/movie?query=${encodeURIComponent(rec.title)}`, 
+          API_OPTIONS
+        );
+        const data = await response.json();
+        const movie = data.results?.[0]; // Take the first result
+        
+        // If found, attach the AI's reason to the movie object!
+        return movie ? { ...movie, ai_reason: rec.reason } : null;
+      });
+
+      // 2. Wait for all searches to finish
+      const results = await Promise.all(moviePromises);
+      
+      // 3. Filter out any nulls (movies not found)
+      const validMovies = results.filter(m => m !== null);
+      
+      setMovieList(validMovies);
+    } catch (error) {
+      console.error("Error fetching AI movies:", error);
+      setErrorMessage("Could not load AI recommendations.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  
   return (
     <main>
       <div className="pattern"/>
@@ -116,6 +195,15 @@ const App = () => {
         <header>
           <img src="/hero-img.png" alt="Hero Banner" />
           <h1>Find <span className="text-gradient">Movies</span> You'll Enjoy Without the Hassle</h1>
+          {/* <div className="mt-4 mb-8">
+            <button 
+              onClick={() => setIsTasteModalOpen(true)}
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition shadow-lg flex items-center gap-2 mx-auto"
+            >
+              ✨ Discover Your Taste (AI)
+            </button>
+          </div> */}
+
           <Search searchTerm={searchTerm} setsearchTerm={setsearchTerm} />
         </header>
 
@@ -149,8 +237,35 @@ const App = () => {
         </section>
       </div>
 
+      {/* 👇 MODERN GLASSMORPHISM BUTTON */}
+      <button 
+        onClick={() => setIsTasteModalOpen(true)}
+        className="fixed bottom-8 right-8 z-50 flex items-center gap-3 px-5 py-3 
+                   bg-white/10 backdrop-blur-lg border border-white/20 
+                   rounded-full shadow-2xl hover:bg-white/20 transition-all duration-300 
+                   group hover:scale-105 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+      >
+        <span className="text-xl group-hover:rotate-12 transition-transform duration-300">✨</span>
+        <span className="font-medium text-white tracking-wide text-sm">
+           AI Assistant
+        </span>
+      </button>
+
+      {/* (Keep existing modals below) */}
+
       {isModalOpen && selectedMovie && (
         <Modal movie={selectedMovie} onClose={closeModal} />
+      )}
+
+      {isTasteModalOpen && (
+        <TasteProfiler 
+          onClose={() => setIsTasteModalOpen(false)} 
+          onRecommendations={(result) => {
+            console.log("Future step: handle results", result);
+            setIsTasteModalOpen(false);
+            fetchAIMovies(result);
+          }}
+        />
       )}
     </main>
   )

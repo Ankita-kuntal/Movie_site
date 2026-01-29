@@ -1,103 +1,91 @@
-import React from 'react';
-
+import React, { useEffect, useState } from 'react';
+import { askAI } from '../ai/client.js';
 
 const Modal = ({ movie, onClose }) => {
+  const [aiContent, setAiContent] = useState(null);
+
+  // When the modal opens, ask AI for a fun fact and tags
+  useEffect(() => {
+    const fetchAIAnalysis = async () => {
+      if (!movie) return;
+
+      const prompt = `
+        For the movie "${movie.title}", provide:
+        1. A "fun fact" or "behind the scenes" trivia (max 1 sentence).
+        2. Three "Mood Tags" (e.g. #Dark, #Suspenseful).
+        
+        Return JSON format: { "fun_fact": "...", "tags": ["#Tag1", "#Tag2", "#Tag3"] }
+      `;
+
+      try {
+        const response = await askAI(prompt);
+        // Smart Clean: Remove markdown if present
+        const cleanJson = response.replace(/```json|```/g, '').trim();
+        setAiContent(JSON.parse(cleanJson));
+      } catch (error) {
+        console.error("AI Modal Error:", error);
+      }
+    };
+
+    fetchAIAnalysis();
+  }, [movie]);
+
   if (!movie) return null;
 
-  // Helper for formatting currency
-  const formatCurrency = (num) => {
-    if (!num) return 'N/A';
-    return num.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-  };
-
-  // Helper for joining production companies
-  const getCompanies = (arr) => {
-    if (!arr || !arr.length) return 'N/A';
-    return arr.map(c => c.name).join(' • ');
-  };
-
-  // Helper for spoken languages
-  const getLanguages = (arr) => {
-    if (!arr || !arr.length) return 'N/A';
-    return arr.map(l => l.english_name).join(', ');
-  };
-
-  // Helper for countries
-  const getCountries = (arr) => {
-    if (!arr || !arr.length) return 'N/A';
-    return arr.map(c => c.name).join(' • ');
-  };
-
-  // Close modal when clicking outside modal-content
-  const handleOverlayClick = (e) => {
-    if (e.target.classList.contains('modal-overlay')) {
-      onClose();
-    }
-  };
-
   return (
-    <div className="modal-overlay" onClick={handleOverlayClick}>
-      <div className="modal-content modal-content-scrollable">
-        <button className="modal-close" onClick={onClose}>&times;</button>
-        {/* Wide banner image at the top */}
-        <div style={{width: '100%', maxHeight: '320px', overflow: 'hidden', borderRadius: '14px 14px 0 0', marginBottom: 18, background: '#18122b', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-          <img
-            src={movie.backdrop_path ?
-              `https://image.tmdb.org/t/p/w780${movie.backdrop_path}` :
-              (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : '/No-Poster.png')}
-            alt={movie.title}
-            style={{maxWidth: '100%', maxHeight: '320px', width: 'auto', height: 'auto', objectFit: 'contain', objectPosition: 'center', display: 'block', margin: '0 auto'}}
-          />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden max-w-3xl w-full relative shadow-2xl flex flex-col md:flex-row">
+        
+        {/* Close Button */}
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white z-10 bg-black/50 rounded-full p-2">✕</button>
+
+        {/* Left Side: Poster */}
+        <div className="w-full md:w-1/3 h-64 md:h-auto relative">
+            <img 
+              src={`https://image.tmdb.org/t/p/w500/${movie.poster_path}`} 
+              alt={movie.title} 
+              className="w-full h-full object-cover"
+            />
         </div>
-        <div className="modal-body" style={{flexDirection: 'column', gap: 18, overflowY: 'auto', maxHeight: 'calc(100vh - 260px)'}}>
-          <div className="modal-details" style={{flex: 1}}>
-            <h2 className="modal-title" style={{marginBottom: 8}}>{movie.title}</h2>
-            <div className="modal-info" style={{marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12}}>
-              <span className="modal-year">{movie.release_date ? movie.release_date : 'N/A'}</span>
-              <span className="modal-rating">⭐ {movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A'}/10</span>
-              <span className="modal-runtime">{movie.runtime ? `${movie.runtime} min` : 'N/A'}</span>
+
+        {/* Right Side: Content */}
+        <div className="p-6 md:w-2/3 flex flex-col">
+            <h2 className="text-3xl font-bold text-white mb-2">{movie.title}</h2>
+            
+            <div className="flex items-center gap-3 text-gray-400 text-sm mb-4">
+                <span>{movie.release_date?.split('-')[0]}</span>
+                <span>•</span>
+                <span>⭐ {movie.vote_average?.toFixed(1)}</span>
+                <span>•</span>
+                <span className="uppercase">{movie.original_language}</span>
             </div>
-            {/* Genres as tags */}
-            <div style={{marginBottom: 12, display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-              {movie.genres && movie.genres.length > 0 ? (
-                movie.genres.map(genre => (
-                  <span key={genre.id} style={{background: '#2d2250', color: '#bfaaff', borderRadius: 8, padding: '2px 12px', fontSize: 14, fontWeight: 600}}>{genre.name}</span>
-                ))
-              ) : 'No genres'}
+
+            {/* AI Generated Tags */}
+            {aiContent ? (
+                <div className="flex flex-wrap gap-2 mb-4">
+                    {aiContent.tags.map((tag, i) => (
+                        <span key={i} className="px-3 py-1 bg-indigo-900/50 text-indigo-300 text-xs rounded-full border border-indigo-500/30">
+                            {tag}
+                        </span>
+                    ))}
+                </div>
+            ) : (
+                <div className="h-6 w-32 bg-gray-800 animate-pulse rounded mb-4"></div>
+            )}
+
+            <p className="text-gray-300 leading-relaxed mb-6">
+                {movie.overview}
+            </p>
+
+            {/* AI Generated Fun Fact */}
+            <div className="mt-auto bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                <h3 className="text-indigo-400 text-sm font-bold mb-1">🤖 AI Insider Knowledge:</h3>
+                {aiContent ? (
+                    <p className="text-sm text-gray-300 italic">"{aiContent.fun_fact}"</p>
+                ) : (
+                    <div className="h-4 w-full bg-gray-800 animate-pulse rounded"></div>
+                )}
             </div>
-            {/* Overview */}
-            <div style={{marginBottom: 16}}>
-              <h4 style={{fontWeight: 700, marginBottom: 4}}>Overview</h4>
-              <p className="modal-overview">{movie.overview || 'No overview available.'}</p>
-            </div>
-            {/* Details grid */}
-            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16}}>
-              <div>
-                <span style={{fontWeight: 600}}>Release date:</span><br/>{movie.release_date || 'N/A'}
-              </div>
-              <div>
-                <span style={{fontWeight: 600}}>Countries:</span><br/>{getCountries(movie.production_countries)}
-              </div>
-              <div>
-                <span style={{fontWeight: 600}}>Status:</span><br/>{movie.status || 'N/A'}
-              </div>
-              <div>
-                <span style={{fontWeight: 600}}>Language:</span><br/>{getLanguages(movie.spoken_languages)}
-              </div>
-              <div>
-                <span style={{fontWeight: 600}}>Budget:</span><br/>{formatCurrency(movie.budget)}
-              </div>
-              <div>
-                <span style={{fontWeight: 600}}>Revenue:</span><br/>{formatCurrency(movie.revenue)}
-              </div>
-              <div style={{gridColumn: '1 / span 2'}}>
-                <span style={{fontWeight: 600}}>Tagline:</span><br/>{movie.tagline || 'N/A'}
-              </div>
-              <div style={{gridColumn: '1 / span 2'}}>
-                <span style={{fontWeight: 600}}>Production Companies:</span><br/>{getCompanies(movie.production_companies)}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

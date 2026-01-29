@@ -10,6 +10,13 @@ const MovieCard = ({ movie, onCardClick }) => {
       />
 
       <div className="mt-4">
+        {/* 👇 NEW: Show AI Reason if it exists */}
+        {movie.ai_reason && (
+           <div className="mb-3 p-2 bg-indigo-900/50 border border-indigo-500/30 rounded-md">
+             <p className="text-xs text-indigo-200">✨ {movie.ai_reason}</p>
+           </div>
+        )}
+        
         <h3>{movie.title}</h3>
 
         <div className="content"> 
