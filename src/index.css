@@ -37,7 +37,7 @@
 @layer components {
   .pattern {
     @apply w-full h-screen bg-center bg-cover absolute z-0;
-    background-image: url("BG.png");
+    background-image: url("/BG.png");
   }
 
   .wrapper {
