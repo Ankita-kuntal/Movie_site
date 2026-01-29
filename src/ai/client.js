@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
+console.log("🔍 DEPLOYED KEY CHECK:", apiKey ? `Exists: ${apiKey.slice(0, 5)}...` : "MISSING/UNDEFINED");
 // 1. Setup the client with your API key
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
 
