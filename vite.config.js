@@ -3,5 +3,5 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  // Force Vercel rebuild - v1
+  // Force Vercel Rebuild - Attempt #2
 })
