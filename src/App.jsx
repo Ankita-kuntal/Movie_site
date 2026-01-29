@@ -158,10 +158,9 @@ const App = () => {
     try {
       // 1. We create a list of promises (one search per movie)
       const moviePromises = aiRecommendations.map(async (rec) => {
-        // Search TMDB for this specific title
+        // Search TMDB for this specific title - ADD API KEY AS QUERY PARAM
         const response = await fetch(
-          `${API_BASE_URL}/search/movie?query=${encodeURIComponent(rec.title)}`, 
-          API_OPTIONS
+          `${API_BASE_URL}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(rec.title)}`
         );
         const data = await response.json();
         const movie = data.results?.[0]; // Take the first result
