@@ -11,7 +11,7 @@ console.log("🔍 DEPLOYED KEY CHECK:", apiKey ? `Key exists. Starts with: ${api
 const genAI = new GoogleGenerativeAI(apiKey);
 
 // 4. Define the model
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 export const askAI = async (prompt) => {
   try {
