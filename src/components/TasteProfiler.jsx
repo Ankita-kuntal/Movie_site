@@ -41,6 +41,13 @@ const TasteProfiler = ({ onClose, onRecommendations }) => {
       const responseText = await askAI(prompt);
       console.log("Raw AI Response:", responseText);
 
+      // Handle error responses
+      if (responseText.includes("couldn't fetch") || responseText.includes("quota")) {
+        alert("⚠️ AI service is temporarily unavailable (quota exceeded). Please try again in a few minutes or upgrade your Gemini API plan.");
+        onClose();
+        return;
+      }
+
       // 2. SMART PARSER: Find the array using Regex
       // This ignores "Here is your JSON" text and grabs only what's between [ and ]
       const jsonMatch = responseText.match(/\[[\s\S]*\]/);
@@ -55,7 +62,7 @@ const TasteProfiler = ({ onClose, onRecommendations }) => {
       onRecommendations(recommendations);
     } catch (error) {
       console.error("Failed to parse AI response:", error);
-      alert("The AI got confused. Check the console for the raw response!");
+      alert("⚠️ The AI service hit a rate limit. Wait 10 seconds and try again, or check your API quota at https://ai.google.dev/");
       onClose();
     } finally {
       setIsLoading(false);
