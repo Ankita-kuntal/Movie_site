@@ -4,7 +4,8 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // 🚨 FORCE REBUILD TIMESTAMP: 2026-02-01 (Update this if keys change)
+  // 🚨 FORCE REBUILD: Resume Project Fix 2026
+  // This comment ensures Vercel rebuilds the app from scratch.
   server: {
     host: true,
   }
