@@ -3,7 +3,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!apiKey) {
+  // This error is what you are seeing in the logs now
   console.error("❌ API Key is missing! Check Vercel settings.");
+  throw new Error("API Key is missing");
 }
 
 const genAI = new GoogleGenerativeAI(apiKey);
