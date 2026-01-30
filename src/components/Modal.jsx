@@ -10,20 +10,37 @@ const Modal = ({ movie, onClose }) => {
       if (!movie) return;
 
       const prompt = `
-        For the movie "${movie.title}", provide:
-        1. A "fun fact" or "behind the scenes" trivia (max 1 sentence).
-        2. Three "Mood Tags" (e.g. #Dark, #Suspenseful).
-        
-        Return JSON format: { "fun_fact": "...", "tags": ["#Tag1", "#Tag2", "#Tag3"] }
+        Analyze the movie "${movie.title}".
+        Return ONLY a valid JSON object with these exact keys:
+        {
+          "fun_fact": "A short, interesting trivia fact about this movie",
+          "tags": ["Mood 1", "Mood 2", "Mood 3"]
+        }
+        Do not write any other text. JUST THE JSON.
       `;
 
       try {
-        const response = await askAI(prompt);
-        // Smart Clean: Remove markdown if present
-        const cleanJson = response.replace(/```json|```/g, '').trim();
-        setAiContent(JSON.parse(cleanJson));
+        // 1. Get the raw text from AI
+        const responseText = await askAI(prompt);
+        
+        // 2. SMART PARSE: Find the JSON object using Regex
+        // (This ignores any "Here is your JSON" text the AI might add)
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/); 
+        
+        if (jsonMatch) {
+          const data = JSON.parse(jsonMatch[0]);
+          setAiContent(data); // ✅ Correct state name
+        } else {
+          throw new Error("No JSON found");
+        }
+
       } catch (error) {
         console.error("AI Modal Error:", error);
+        // Fallback content if AI fails
+        setAiContent({ 
+          fun_fact: "The AI is currently watching this movie...", 
+          tags: ["Classic", "Cinema", "Film"] 
+        });
       }
     };
 
@@ -42,7 +59,7 @@ const Modal = ({ movie, onClose }) => {
         {/* Left Side: Poster */}
         <div className="w-full md:w-1/3 h-64 md:h-auto relative">
             <img 
-              src={`https://image.tmdb.org/t/p/w500/${movie.poster_path}`} 
+              src={movie.poster_path ? `https://image.tmdb.org/t/p/w500/${movie.poster_path}` : '/No-Poster.png'} 
               alt={movie.title} 
               className="w-full h-full object-cover"
             />

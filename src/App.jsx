@@ -118,7 +118,12 @@ const App = () => {
   // Function to open the modal
   const openModal = async (movie) => {
     try {
-      const movieDetailsResponse = await fetch(`${API_BASE_URL}/movie/${movie.id}?api_key=${API_KEY}`);
+      // ✅ CORRECT FIX: Use API_OPTIONS (Header) instead of URL param
+      const movieDetailsResponse = await fetch(
+        `${API_BASE_URL}/movie/${movie.id}`, 
+        API_OPTIONS
+      );
+      
       const movieDetails = await movieDetailsResponse.json();
       setSelectedMovie(movieDetails);
       setIsModalOpen(true);
@@ -158,10 +163,12 @@ const App = () => {
     try {
       // 1. We create a list of promises (one search per movie)
       const moviePromises = aiRecommendations.map(async (rec) => {
-        // Search TMDB for this specific title - ADD API KEY AS QUERY PARAM
+        // ✅ CORRECT FIX: Use API_OPTIONS (Headers) instead of ?api_key=...
         const response = await fetch(
-          `${API_BASE_URL}/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(rec.title)}`
+          `${API_BASE_URL}/search/movie?query=${encodeURIComponent(rec.title)}`,
+          API_OPTIONS // <--- This adds the Authorization Header automatically!
         );
+        
         const data = await response.json();
         const movie = data.results?.[0]; // Take the first result
         
