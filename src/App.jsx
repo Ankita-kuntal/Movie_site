@@ -10,7 +10,6 @@ import { askAI, parseSearchIntent } from './ai/client.js';
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 
-// ✅ HEADER AUTH (Fixes 401 Error)
 const API_OPTIONS = {
   method: 'GET',
   headers: {
@@ -40,21 +39,28 @@ const App = () => {
       let endpoint = `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
 
       if (query) {
-        // AI Smart Search
+        // 🧠 Step 1: Ask AI "What does the user want?"
         const intent = await parseSearchIntent(query);
-        console.log("🧠 AI Search Intent:", intent);
+        console.log("🧠 AI Search Logic:", intent); // Check your Console to see this!
 
         if (intent.type === 'search') {
+          // Case A: User wants a specific movie (e.g., "Batman")
+          // Use the standard Search endpoint
           endpoint = `${API_BASE_URL}/search/movie?query=${encodeURIComponent(intent.query)}`;
-        } else {
+        } else if (intent.type === 'discover') {
+          // Case B: User wants a vibe (e.g., "Sad movies")
+          // Use the Discover endpoint with filters
           const params = new URLSearchParams({
             include_adult: 'false',
             include_video: 'false',
             language: 'en-US',
             sort_by: 'popularity.desc',
-            ...intent
+            ...intent // Spreads keys like 'with_genres', 'primary_release_year'
           });
-          if (params.has('type')) params.delete('type'); 
+          // Remove internal keys so TMDB doesn't complain
+          params.delete('type'); 
+          params.delete('query');
+          
           endpoint = `${API_BASE_URL}/discover/movie?${params.toString()}`;
         }
       }
@@ -66,7 +72,13 @@ const App = () => {
       }
 
       const data = await response.json();
-      setMovieList(data.results || []);
+      
+      if(data.results.length === 0) {
+        setErrorMessage('No movies found matching that vibe. Try "Funny" or "Action".');
+        setMovieList([]);
+      } else {
+        setMovieList(data.results);
+      }
 
     } catch (error) {
       console.error(`Error fetching movies: ${error}`);
@@ -98,11 +110,7 @@ const App = () => {
 
   const openModal = async (movie) => {
     try {
-      // ✅ Fetch Details with Header
-      const movieDetailsResponse = await fetch(
-        `${API_BASE_URL}/movie/${movie.id}`, 
-        API_OPTIONS
-      );
+      const movieDetailsResponse = await fetch(`${API_BASE_URL}/movie/${movie.id}`, API_OPTIONS);
       const movieDetails = await movieDetailsResponse.json();
       setSelectedMovie(movieDetails);
       setIsModalOpen(true);
@@ -130,7 +138,6 @@ const App = () => {
     
     try {
       const moviePromises = aiRecommendations.map(async (rec) => {
-        // ✅ Fetch Search with Header
         const response = await fetch(
           `${API_BASE_URL}/search/movie?query=${encodeURIComponent(rec.title)}`,
           API_OPTIONS
