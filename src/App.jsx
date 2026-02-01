@@ -5,7 +5,7 @@ import MovieCard from './components/MovieCard.jsx'
 import { useDebounce } from 'react-use'
 import Modal from './components/Modal.jsx'
 import TasteProfiler from './components/TasteProfiler.jsx'
-import { askAI, parseSearchIntent } from './ai/client.js';
+import { parseSearchIntent } from './ai/client.js';
 
 const API_BASE_URL = 'https://api.themoviedb.org/3';
 const API_KEY = import.meta.env.VITE_TMDB_API_KEY;
@@ -39,125 +39,100 @@ const App = () => {
       let endpoint = `${API_BASE_URL}/discover/movie?sort_by=popularity.desc`;
 
       if (query) {
-        // 🧠 Step 1: Ask AI "What does the user want?"
+        // 🧠 Ask AI: "What does the user really want?"
         const intent = await parseSearchIntent(query);
-        console.log("🧠 AI Search Logic:", intent); // Check your Console to see this!
+        console.log("🧠 Intent:", intent);
 
         if (intent.type === 'search') {
-          // Case A: User wants a specific movie (e.g., "Batman")
-          // Use the standard Search endpoint
+          // 🔎 It's a Title (or AI figured out the Title from a plot)
           endpoint = `${API_BASE_URL}/search/movie?query=${encodeURIComponent(intent.query)}`;
+        
+        } else if (intent.type === 'person') {
+          // 👤 It's an Actor/Director -> Find their ID first
+          const personRes = await fetch(`${API_BASE_URL}/search/person?query=${encodeURIComponent(intent.query)}`, API_OPTIONS);
+          const personData = await personRes.json();
+          
+          if (personData.results?.length > 0) {
+            const personId = personData.results[0].id;
+            endpoint = `${API_BASE_URL}/discover/movie?with_cast=${personId}&sort_by=popularity.desc`;
+          } else {
+            setErrorMessage("Actor not found.");
+            setIsLoading(false);
+            return;
+          }
+
         } else if (intent.type === 'discover') {
-          // Case B: User wants a vibe (e.g., "Sad movies")
-          // Use the Discover endpoint with filters
+          // 🎭 It's a Vibe/Genre
           const params = new URLSearchParams({
             include_adult: 'false',
             include_video: 'false',
             language: 'en-US',
             sort_by: 'popularity.desc',
-            ...intent // Spreads keys like 'with_genres', 'primary_release_year'
+            ...intent
           });
-          // Remove internal keys so TMDB doesn't complain
-          params.delete('type'); 
-          params.delete('query');
-          
+          params.delete('type'); params.delete('query');
           endpoint = `${API_BASE_URL}/discover/movie?${params.toString()}`;
         }
       }
 
       const response = await fetch(endpoint, API_OPTIONS);
-
-      if(!response.ok) {
-        throw new Error('Failed to fetch movies');
-      }
-
+      if(!response.ok) throw new Error('Failed to fetch movies');
+      
       const data = await response.json();
       
       if(data.results.length === 0) {
-        setErrorMessage('No movies found matching that vibe. Try "Funny" or "Action".');
+        setErrorMessage('No movies found matching that search.');
         setMovieList([]);
       } else {
         setMovieList(data.results);
       }
 
     } catch (error) {
-      console.error(`Error fetching movies: ${error}`);
+      console.error(`Error: ${error}`);
       setErrorMessage('Error fetching movies. Please try again later.');
     } finally {
       setIsLoading(false);
     }
   }
 
+  // ... (Rest of the component handles trending, modals, etc.)
   const loadTrendingMovies = async () => {
     try {
       const endpoint = `${API_BASE_URL}/trending/movie/week`;
       const response = await fetch(endpoint, API_OPTIONS);
       const data = await response.json();
-
-      setTrendingMovies(
-        (data.results || []).map(movie => ({
-          id: movie.id,
-          poster_url: movie.poster_path
-            ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-            : "/fallback.png",
-          title: movie.title,
-        }))
-      );
-    } catch (error) {
-      console.error(`Error fetching trending movies: ${error}`);
-    }
+      setTrendingMovies((data.results || []).map(movie => ({
+        id: movie.id,
+        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : "/fallback.png",
+        title: movie.title,
+      })));
+    } catch (e) { console.error(e); }
   }
 
   const openModal = async (movie) => {
     try {
-      const movieDetailsResponse = await fetch(`${API_BASE_URL}/movie/${movie.id}`, API_OPTIONS);
-      const movieDetails = await movieDetailsResponse.json();
-      setSelectedMovie(movieDetails);
+      const res = await fetch(`${API_BASE_URL}/movie/${movie.id}`, API_OPTIONS);
+      const data = await res.json();
+      setSelectedMovie(data);
       setIsModalOpen(true);
-    } catch (error) {
-      console.error('Error fetching movie details:', error);
-    }
+    } catch (e) { console.error(e); }
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setSelectedMovie(null);
-  };
-
-  useEffect(() => {
-    fetchMovies(debouncedSearchTerm);
-  }, [debouncedSearchTerm]);
-
-  useEffect(() => {
-    loadTrendingMovies();
-  }, []);
-
-  const fetchAIMovies = async (aiRecommendations) => {
+  const fetchAIMovies = async (recs) => {
     setIsLoading(true);
-    setErrorMessage('');
-    
     try {
-      const moviePromises = aiRecommendations.map(async (rec) => {
-        const response = await fetch(
-          `${API_BASE_URL}/search/movie?query=${encodeURIComponent(rec.title)}`,
-          API_OPTIONS
-        );
-        const data = await response.json();
-        const movie = data.results?.[0]; 
-        return movie ? { ...movie, ai_reason: rec.reason } : null;
+      const promises = recs.map(async (rec) => {
+        const res = await fetch(`${API_BASE_URL}/search/movie?query=${encodeURIComponent(rec.title)}`, API_OPTIONS);
+        const data = await res.json();
+        const m = data.results?.[0]; 
+        return m ? { ...m, ai_reason: rec.reason } : null;
       });
-
-      const results = await Promise.all(moviePromises);
-      const validMovies = results.filter(m => m !== null);
-      setMovieList(validMovies);
-    } catch (error) {
-      console.error("Error fetching AI movies:", error);
-      setErrorMessage("Could not load AI recommendations.");
-    } finally {
-      setIsLoading(false);
-    }
+      setMovieList((await Promise.all(promises)).filter(m => m));
+    } catch (e) { console.error(e); } finally { setIsLoading(false); }
   };
 
+  useEffect(() => { fetchMovies(debouncedSearchTerm); }, [debouncedSearchTerm]);
+  useEffect(() => { loadTrendingMovies(); }, []);
 
   return (
     <main>
@@ -199,30 +174,17 @@ const App = () => {
         </section>
       </div>
 
-      <button 
-        onClick={() => setIsTasteModalOpen(true)}
-        className="fixed bottom-8 right-8 z-50 flex items-center gap-3 px-5 py-3 
-                   bg-white/10 backdrop-blur-lg border border-white/20 
-                   rounded-full shadow-2xl hover:bg-white/20 transition-all duration-300 
-                   group hover:scale-105 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)]"
-      >
-        <span className="text-xl group-hover:rotate-12 transition-transform duration-300">✨</span>
-        <span className="font-medium text-white tracking-wide text-sm">
-           AI Assistant
-        </span>
+      <button onClick={() => setIsTasteModalOpen(true)} className="fixed bottom-8 right-8 z-50 flex items-center gap-3 px-5 py-3 bg-white/10 backdrop-blur-lg border border-white/20 rounded-full shadow-2xl hover:bg-white/20 transition-all duration-300 group hover:scale-105">
+        <span className="text-xl group-hover:rotate-12 transition-transform">✨</span>
+        <span className="font-medium text-white text-sm">AI Assistant</span>
       </button>
 
-      {isModalOpen && selectedMovie && (
-        <Modal movie={selectedMovie} onClose={closeModal} />
-      )}
-
+      {isModalOpen && selectedMovie && <Modal movie={selectedMovie} onClose={() => setIsModalOpen(false)} />}
+      
       {isTasteModalOpen && (
         <TasteProfiler 
           onClose={() => setIsTasteModalOpen(false)} 
-          onRecommendations={(result) => {
-            setIsTasteModalOpen(false);
-            fetchAIMovies(result);
-          }}
+          onRecommendations={(result) => { setIsTasteModalOpen(false); fetchAIMovies(result); }}
         />
       )}
     </main>
